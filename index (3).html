@@ -1,0 +1,1484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Potato-Craft version alpha 2.0</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'VT323', monospace; color: #fff; user-select: none; }
+        .hidden { display: none !important; }
+
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; width: 20px; height: 20px;
+            transform: translate(-50%, -50%); pointer-events: none; z-index: 100;
+            mix-blend-mode: difference;
+        }
+        #crosshair::before, #crosshair::after { content: ''; position: absolute; background: white; }
+        #crosshair::before { top: 9px; left: 0; width: 20px; height: 2px; }
+        #crosshair::after { top: 0; left: 9px; width: 2px; height: 20px; }
+
+        #hud-container {
+            position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+            z-index: 100;
+        }
+        #hud-hotbar {
+            display: flex; gap: 4px; background: rgba(0,0,0,0.6); padding: 6px;
+            border: 3px solid #3c3c3c; border-top-color: #888; border-left-color: #888;
+        }
+        #hud-stats {
+            position: absolute; top: 12px; right: 12px; font-size: 24px; line-height: 1.2;
+            text-shadow: 2px 2px 0 #000;
+        }
+        #hud-time {
+            position: absolute; top: 12px; left: 12px; font-size: 20px; 
+            text-shadow: 2px 2px 0 #000;
+        }
+        #camera-mode {
+            position: absolute; top: 12px; left: 220px; font-size: 18px;
+            text-shadow: 2px 2px 0 #000;
+        }
+        .heart { color: #ff0000; }
+        .hunger { color: #ffaa00; }
+
+        .slot {
+            width: 44px; height: 44px; background: #8b8b8b;
+            border: 3px solid #373737; border-top-color: #373737; border-left-color: #373737;
+            border-bottom-color: #ffffff; border-right-color: #ffffff;
+            position: relative; box-sizing: border-box; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .slot.selected { border: 4px solid #ffffff !important; box-shadow: 0 0 10px #fff; }
+        .slot-img { width: 32px; height: 32px; image-rendering: pixelated; pointer-events: none; }
+        .slot-count {
+            position: absolute; bottom: 1px; right: 3px; font-size: 18px;
+            text-shadow: 2px 2px 0 #000; color: #fff; pointer-events: none;
+        }
+
+        .gui-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 200;
+        }
+        .gui-window {
+            background: #c6c6c6; border: 4px solid #ffffff;
+            border-bottom-color: #555; border-right-color: #555;
+            padding: 16px; box-shadow: 0 0 25px #000; color: #222; text-align: center;
+        }
+        .gui-title { font-size: 26px; font-weight: bold; margin-bottom: 6px; text-shadow: 1px 1px 0 #fff; }
+        .grid-container { display: grid; gap: 4px; margin-bottom: 10px; justify-content: center; }
+        .grid-9 { grid-template-columns: repeat(9, 44px); }
+        .grid-3 { grid-template-columns: repeat(3, 44px); }
+
+        #cursor-item {
+            position: absolute; pointer-events: none; z-index: 300;
+            width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+        }
+
+        .mc-btn {
+            background: #717171; border: 2px solid #373737; border-top-color: #aaa; border-left-color: #aaa;
+            color: #fff; padding: 8px 16px; font-size: 22px; font-family: 'VT323', monospace;
+            cursor: pointer; text-shadow: 2px 2px 0 #000; width: 100%; margin-top: 6px; box-sizing: border-box;
+        }
+        .mc-btn:hover { background: #8292d3; border-top-color: #a4b3f5; border-left-color: #a4b3f5; }
+
+        #crafting-input { display: grid; grid-template-columns: repeat(3, 44px); gap: 4px; margin-bottom: 10px; }
+        #crafting-output { display: flex; gap: 4px; align-items: center; justify-content: center; }
+        .crafting-arrow { font-size: 36px; margin: 0 10px; }
+
+        #creative-grid { display: grid; grid-template-columns: repeat(9, 44px); gap: 4px; max-height: 400px; overflow-y: auto; }
+
+        .gamemode-buttons { display: flex; gap: 10px; margin-bottom: 10px; justify-content: center; }
+        .gamemode-btn { padding: 8px 16px; font-size: 20px; flex: 1; }
+        .gamemode-btn.active { background: #8292d3 !important; }
+
+        .crafting-table-layout {
+            display: flex; gap: 20px; justify-content: center;
+        }
+        .crafting-section {
+            display: flex; flex-direction: column; align-items: center;
+        }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.150.1/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.150.1/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="crosshair" class="hidden"></div>
+    <div id="hud-container" class="hidden">
+        <div id="hud-time"></div>
+        <div id="camera-mode"></div>
+        <div id="hud-stats"></div>
+        <div id="hud-hotbar"></div>
+    </div>
+    <div id="cursor-item" class="hidden"></div>
+
+    <div id="screen-main" class="gui-overlay">
+        <h1 style="font-size: 80px; color: #d4a373; text-shadow: 5px 5px 0 #4a2810; margin-bottom: 20px;">POTATO-CRAFT</h1>
+        <div class="gui-window" style="width: 360px;">
+            <input type="text" id="world-name-input" placeholder="World Name" style="width: 90%; font-size: 20px; padding: 6px; font-family: 'VT323';" value="My World">
+            
+            <div class="gamemode-buttons">
+                <button id="gamemode-survival" class="mc-btn gamemode-btn active">Survival</button>
+                <button id="gamemode-creative" class="mc-btn gamemode-btn">Creative</button>
+            </div>
+            
+            <button id="btn-create-world" class="mc-btn">Create / Play World</button>
+            <h3 style="margin-top: 15px; margin-bottom: 5px;">Saved Worlds</h3>
+            <div id="world-list" style="max-height: 120px; overflow-y: auto;"></div>
+        </div>
+    </div>
+
+    <div id="screen-pause" class="gui-overlay hidden">
+        <div class="gui-window">
+            <div class="gui-title">Game Paused</div>
+            <button id="btn-resume" class="mc-btn">Back to Game</button>
+            <button id="btn-save-quit" class="mc-btn">Save & Quit to Title</button>
+        </div>
+    </div>
+
+    <div id="screen-inventory" class="gui-overlay hidden">
+        <div class="gui-window" style="width: auto;">
+            <div id="chest-section" class="hidden">
+                <div class="gui-title" id="chest-title">Chest Storage</div>
+                <div id="chest-grid" class="grid-container grid-9"></div>
+                <hr>
+            </div>
+
+            <div class="gui-title">Inventory</div>
+            <div id="main-inventory-grid" class="grid-container grid-9"></div>
+
+            <div class="gui-title">Hotbar</div>
+            <div id="hotbar-grid" class="grid-container grid-9"></div>
+
+            <button id="btn-close-inv" class="mc-btn">Close (E)</button>
+        </div>
+    </div>
+
+    <div id="screen-crafting" class="gui-overlay hidden">
+        <div class="gui-window" style="width: auto;">
+            <div class="gui-title">Crafting Table</div>
+            
+            <div class="crafting-table-layout">
+                <div class="crafting-section">
+                    <div style="font-size: 18px; margin-bottom: 8px;"><strong>Input</strong></div>
+                    <div id="crafting-input"></div>
+                </div>
+
+                <div class="crafting-section">
+                    <div style="font-size: 18px; margin-bottom: 8px;"><strong>Output</strong></div>
+                    <div id="crafting-output">
+                        <div class="slot" style="margin: 0 auto;">
+                            <div id="crafting-result"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <hr style="margin: 15px 0;">
+
+            <div class="gui-title" style="font-size: 18px;">Inventory</div>
+            <div id="crafting-inv-grid" class="grid-container grid-9"></div>
+            <div id="crafting-hotbar-grid" class="grid-container grid-9"></div>
+
+            <div id="recipes-list" style="margin-top: 15px; max-height: 100px; overflow-y: auto; font-size: 16px; text-align: left;">
+                <strong>Recipes:</strong>
+                <div id="recipes-text"></div>
+            </div>
+
+            <button id="btn-close-crafting" class="mc-btn">Close (E)</button>
+        </div>
+    </div>
+
+    <div id="screen-creative" class="gui-overlay hidden">
+        <div class="gui-window" style="width: auto;">
+            <div class="gui-title">Creative Mode</div>
+            
+            <div class="gui-title" style="font-size: 18px; margin-bottom: 10px;">Available Blocks & Items</div>
+            <div id="creative-grid"></div>
+
+            <div class="gui-title">Hotbar</div>
+            <div id="creative-hotbar-grid" class="grid-container grid-9"></div>
+
+            <button id="btn-close-creative" class="mc-btn">Close (E)</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+        class PerlinNoise {
+            constructor(seed = 0) {
+                this.seed = seed;
+                this.p = this.buildPermutation(seed);
+            }
+
+            buildPermutation(seed) {
+                const p = [];
+                for (let i = 0; i < 256; i++) p[i] = i;
+                for (let i = 255; i > 0; i--) {
+                    const j = Math.floor(this.seededRandom(seed + i) * (i + 1));
+                    [p[i], p[j]] = [p[j], p[i]];
+                }
+                return p.concat(p);
+            }
+
+            seededRandom(n) {
+                const x = Math.sin(n) * 10000;
+                return x - Math.floor(x);
+            }
+
+            fade(t) {
+                return t * t * t * (t * (t * 6 - 15) + 10);
+            }
+
+            lerp(a, b, t) {
+                return a + (b - a) * t;
+            }
+
+            grad(hash, x, y) {
+                const h = hash & 15;
+                const u = h < 8 ? x : y;
+                const v = h < 8 ? y : x;
+                return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+            }
+
+            noise(x, y) {
+                const xi = Math.floor(x) & 255;
+                const yi = Math.floor(y) & 255;
+                const xf = x - Math.floor(x);
+                const yf = y - Math.floor(y);
+
+                const u = this.fade(xf);
+                const v = this.fade(yf);
+
+                const aa = this.p[this.p[xi] + yi];
+                const ab = this.p[this.p[xi] + yi + 1];
+                const ba = this.p[this.p[xi + 1] + yi];
+                const bb = this.p[this.p[xi + 1] + yi + 1];
+
+                const x1 = this.lerp(
+                    this.grad(aa, xf, yf),
+                    this.grad(ba, xf - 1, yf),
+                    u
+                );
+                const x2 = this.lerp(
+                    this.grad(ab, xf, yf - 1),
+                    this.grad(bb, xf - 1, yf - 1),
+                    u
+                );
+                return this.lerp(x1, x2, v);
+            }
+
+            octaveNoise(x, y, octaves = 4, persistence = 0.5, scale = 1) {
+                let value = 0;
+                let amplitude = 1;
+                let frequency = 1;
+                let maxValue = 0;
+
+                for (let i = 0; i < octaves; i++) {
+                    value += this.noise(x * frequency / scale, y * frequency / scale) * amplitude;
+                    maxValue += amplitude;
+                    amplitude *= persistence;
+                    frequency *= 2;
+                }
+                return value / maxValue;
+            }
+        }
+
+        const CONFIG = {
+            PLAYER_HEIGHT: 1.6,
+            PLAYER_WIDTH: 0.6,
+            REACH_DISTANCE: 6,
+            MAX_STACK_SIZE: 64,
+            GRAVITY: 25,
+            MOVE_SPEED: 6,
+            JUMP_FORCE: 8,
+            CHUNK_SIZE: 8,
+            RENDER_DISTANCE: 2,
+            MAX_BLOCKS_PER_FRAME: 50,
+            COLLISION_BUFFER: 0.1
+        };
+
+        const perlin = new PerlinNoise(12345);
+
+        function getTerrainHeight(x, z) {
+            const baseHeight = perlin.octaveNoise(x, z, 4, 0.5, 80);
+            return Math.floor(baseHeight * 10 + 10);
+        }
+
+        function createTex(c1, c2, type = 'noise') {
+            const canvas = document.createElement('canvas');
+            canvas.width = 16; canvas.height = 16;
+            const ctx = canvas.getContext('2d');
+            for (let x = 0; x < 16; x++) {
+                for (let y = 0; y < 16; y++) {
+                    let fill = Math.random() > 0.5 ? c1 : c2;
+                    if (type === 'border' && (x===0||x===15||y===0||y===15)) fill = '#222';
+                    if (type === 'ore_diamond' && Math.random() > 0.88) fill = '#40e0d0';
+                    if (type === 'ore_gold' && Math.random() > 0.88) fill = '#ffd700';
+                    if (type === 'ore_iron' && Math.random() > 0.88) fill = '#d2b48c';
+                    if (type === 'chest_front') {
+                        fill = (y === 7 || y === 8) ? '#222' : (Math.random() > 0.5 ? '#7a5b29' : '#8f6d36');
+                        if (x >= 7 && x <= 8 && y >= 6 && y <= 9) fill = '#e0e0e0';
+                    }
+                    if (type === 'furnace_front') {
+                        fill = (x===0||x===15||y===0||y===15) ? '#444' : '#666';
+                        if (x >= 4 && x <= 11 && y >= 3 && y <= 6) fill = '#111';
+                        if (x >= 5 && x <= 10 && y >= 9 && y <= 12) fill = '#ff4500';
+                    }
+                    if (type === 'crafting_top') {
+                        fill = Math.random() > 0.5 ? '#8b7355' : '#9d8566';
+                        if (x >= 2 && x <= 13 && y >= 2 && y <= 13) fill = '#555';
+                    }
+                    if (type === 'pickaxe') {
+                        fill = Math.random() > 0.5 ? '#8b7355' : '#9d8566';
+                    }
+                    if (type === 'bedrock') {
+                        fill = Math.random() > 0.5 ? '#111111' : '#0a0a0a';
+                    }
+                    ctx.fillStyle = fill;
+                    ctx.fillRect(x, y, 1, 1);
+                }
+            }
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.magFilter = THREE.NearestFilter;
+            return { tex: texture, url: canvas.toDataURL() };
+        }
+
+        const T = {
+            grass: createTex('#5e9b38', '#69b03c'),
+            dirt: createTex('#6b4c3a', '#785541'),
+            stone: createTex('#7d7d7d', '#8a8a8a'),
+            cobble: createTex('#5c5c5c', '#3e3e3e', 'border'),
+            planks: createTex('#c29d66', '#8f6c3a'),
+            logSide: createTex('#4a3b2b', '#5c4834'),
+            logTop: createTex('#b59367', '#c4a67e'),
+            leaves: createTex('#327329', '#194d13'),
+            oreDiamond: createTex('#7d7d7d', '#8a8a8a', 'ore_diamond'),
+            oreGold: createTex('#7d7d7d', '#8a8a8a', 'ore_gold'),
+            oreIron: createTex('#7d7d7d', '#8a8a8a', 'ore_iron'),
+            chestFront: createTex('#8f6d36', '#7a5b29', 'chest_front'),
+            chestSide: createTex('#8f6d36', '#7a5b29'),
+            furnaceFront: createTex('#666', '#777', 'furnace_front'),
+            furnaceSide: createTex('#666', '#777'),
+            craftingTop: createTex('#8b7355', '#9d8566', 'crafting_top'),
+            pickaxeWood: createTex('#c29d66', '#8f6c3a', 'pickaxe'),
+            pickaxeStone: createTex('#7d7d7d', '#8a8a8a', 'pickaxe'),
+            pickaxeDiamond: createTex('#40e0d0', '#20b0a0', 'pickaxe'),
+            bedrock: createTex('#111111', '#0a0a0a', 'bedrock')
+        };
+
+        const cm = (map) => new THREE.MeshLambertMaterial({ map: map.tex });
+
+        const BLOCKS = {
+            1: { name: 'Grass', icon: T.grass.url, m: [cm(T.dirt), cm(T.dirt), cm(T.grass), cm(T.dirt), cm(T.dirt), cm(T.dirt)], stackable: true },
+            2: { name: 'Dirt', icon: T.dirt.url, m: Array(6).fill(cm(T.dirt)), stackable: true },
+            3: { name: 'Stone', icon: T.stone.url, m: Array(6).fill(cm(T.stone)), stackable: true },
+            4: { name: 'Cobblestone', icon: T.cobble.url, m: Array(6).fill(cm(T.cobble)), stackable: true },
+            5: { name: 'Oak Planks', icon: T.planks.url, m: Array(6).fill(cm(T.planks)), stackable: true },
+            6: { name: 'Oak Log', icon: T.logSide.url, m: [cm(T.logSide), cm(T.logSide), cm(T.logTop), cm(T.logTop), cm(T.logSide), cm(T.logSide)], stackable: true },
+            7: { name: 'Oak Leaves', icon: T.leaves.url, m: Array(6).fill(cm(T.leaves)), stackable: true },
+            8: { name: 'Diamond Ore', icon: T.oreDiamond.url, m: Array(6).fill(cm(T.oreDiamond)), stackable: true },
+            9: { name: 'Gold Ore', icon: T.oreGold.url, m: Array(6).fill(cm(T.oreGold)), stackable: true },
+            10: { name: 'Iron Ore', icon: T.oreIron.url, m: Array(6).fill(cm(T.oreIron)), stackable: true },
+            11: { name: 'Chest', icon: T.chestFront.url, m: [cm(T.chestSide), cm(T.chestSide), cm(T.chestSide), cm(T.chestSide), cm(T.chestFront), cm(T.chestSide)], isChest: true, stackable: true },
+            12: { name: 'Furnace', icon: T.furnaceSide.url, m: Array(6).fill(cm(T.furnaceSide)), stackable: true },
+            13: { name: 'Crafting Table', icon: T.craftingTop.url, m: Array(6).fill(cm(T.craftingTop)), isCraftingTable: true, stackable: true },
+            14: { name: 'Wooden Pickaxe', icon: T.pickaxeWood.url, tool: true, mineSpeed: 0.5, mineable: [2, 3, 4] },
+            15: { name: 'Stone Pickaxe', icon: T.pickaxeStone.url, tool: true, mineSpeed: 1.5, mineable: [3, 4, 8, 9, 10] },
+            16: { name: 'Diamond Pickaxe', icon: T.pickaxeDiamond.url, tool: true, mineSpeed: 3, mineable: [1, 2, 3, 4, 8, 9, 10] },
+            17: { name: 'Wooden Axe', icon: T.logSide.url, tool: true, mineSpeed: 1, mineable: [6] },
+            18: { name: 'Pork', icon: T.dirt.url, stackable: true },
+            19: { name: 'Cooked Pork', icon: T.planks.url, stackable: true },
+            99: { name: 'Bedrock', icon: T.bedrock.url, m: Array(6).fill(cm(T.bedrock)) }
+        };
+
+        const blockGeo = new THREE.BoxGeometry(1, 1, 1);
+
+        const RECIPES = [
+            { input: [[5, 5, null], [5, 5, null], [null, null, null]], output: { id: 13, count: 1 }, name: 'Crafting Table' },
+            { input: [[5, null, null], [null, null, null], [null, null, null]], output: { id: 14, count: 1 }, name: 'Wooden Pickaxe' },
+            { input: [[3, 3, 3], [null, 5, null], [null, 5, null]], output: { id: 15, count: 1 }, name: 'Stone Pickaxe' },
+            { input: [[8, 8, 8], [null, 5, null], [null, 5, null]], output: { id: 16, count: 1 }, name: 'Diamond Pickaxe' },
+            { input: [[6, null, null], [null, null, null], [null, null, null]], output: { id: 5, count: 4 }, name: 'Planks from Log' }
+        ];
+
+        function getPlayerAABB(pos) {
+            return {
+                minX: pos.x - 0.3,
+                maxX: pos.x + 0.3,
+                minY: pos.y - 1.8,
+                maxY: pos.y,
+                minZ: pos.z - 0.3,
+                maxZ: pos.z + 0.3
+            };
+        }
+
+        function getBlockAABB(x, y, z) {
+            return {
+                minX: x - 0.5,
+                maxX: x + 0.5,
+                minY: y - 0.5,
+                maxY: y + 0.5,
+                minZ: z - 0.5,
+                maxZ: z + 0.5
+            };
+        }
+
+        function AABBIntersect(aabb1, aabb2) {
+            return aabb1.minX < aabb2.maxX && aabb1.maxX > aabb2.minX &&
+                   aabb1.minY < aabb2.maxY && aabb1.maxY > aabb2.minY &&
+                   aabb1.minZ < aabb2.maxZ && aabb1.maxZ > aabb2.minZ;
+        }
+
+        function checkCollisionAxis(pos, axis) {
+            const playerAABB = getPlayerAABB(pos);
+            const checkRadius = 2;
+            
+            for (let x = Math.floor(pos.x - checkRadius); x <= Math.ceil(pos.x + checkRadius); x++) {
+                for (let y = Math.floor(pos.y - checkRadius); y <= Math.ceil(pos.y + checkRadius); y++) {
+                    for (let z = Math.floor(pos.z - checkRadius); z <= Math.ceil(pos.z + checkRadius); z++) {
+                        const key = `${x},${y},${z}`;
+                        if (worldData[key]) {
+                            const blockAABB = getBlockAABB(x, y, z);
+                            if (AABBIntersect(playerAABB, blockAABB)) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        function isOnGround(pos) {
+            const testY = pos.y - 1.8 - 0.05;
+            const checkRadius = 0.4;
+            
+            for (let x = Math.floor(pos.x - checkRadius); x <= Math.ceil(pos.x + checkRadius); x++) {
+                for (let z = Math.floor(pos.z - checkRadius); z <= Math.ceil(pos.z + checkRadius); z++) {
+                    const key = `${x},${Math.floor(testY)},${z}`;
+                    if (worldData[key]) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function canPlaceBlock(pos) {
+            const playerAABB = getPlayerAABB(camera.position);
+            const blockAABB = getBlockAABB(pos.x, pos.y, pos.z);
+            return !AABBIntersect(playerAABB, blockAABB);
+        }
+
+        let gameMode = 'survival';
+        let currentWorldName = "";
+        let currentWorldData = null;
+        let gameTime = 6000;
+
+        let hotbar = Array(9).fill(null);
+        let inventory = Array(27).fill(null);
+        let activeHotbarIndex = 0;
+        let heldItem = null;
+        let chests = {};
+        let activeChestKey = null;
+        let craftingGrid = Array(9).fill(null);
+
+        let health = 20;
+        let hunger = 20;
+        let isFlying = false;
+        let mineProgress = {};
+        let lastYPos = 0;
+        let cameraMode = 'first';
+        let oKeyHeld = false;
+        let splitSlotHover = null;
+        let spacePressed = false;
+        let rightShiftHeld = false;
+
+        function initSurvivalInventory() {
+            hotbar = Array(9).fill(null);
+            inventory = Array(27).fill(null);
+            hotbar[0] = { id: 1, count: 64 };
+            hotbar[1] = { id: 2, count: 32 };
+            hotbar[2] = { id: 4, count: 16 };
+            hotbar[3] = { id: 5, count: 16 };
+            hotbar[4] = { id: 13, count: 1 };
+        }
+
+        function initCreativeInventory() {
+            hotbar = Array(9).fill(null);
+            inventory = Array(27).fill(null);
+            hotbar[0] = { id: 5, count: 64 };
+            hotbar[1] = { id: 6, count: 64 };
+            hotbar[2] = { id: 7, count: 64 };
+            hotbar[3] = { id: 1, count: 64 };
+        }
+
+        function addItemToPlayer(id, count = 1) {
+            for (let i = 0; i < 9; i++) {
+                if (hotbar[i] && hotbar[i].id === id && hotbar[i].count < 64) {
+                    hotbar[i].count += count; renderUI(); return;
+                }
+            }
+            for (let i = 0; i < 9; i++) {
+                if (!hotbar[i]) { hotbar[i] = { id, count }; renderUI(); return; }
+            }
+            for (let i = 0; i < 27; i++) {
+                if (inventory[i] && inventory[i].id === id && inventory[i].count < 64) {
+                    inventory[i].count += count; renderUI(); return;
+                }
+            }
+            for (let i = 0; i < 27; i++) {
+                if (!inventory[i]) { inventory[i] = { id, count }; renderUI(); return; }
+            }
+        }
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        scene.fog = new THREE.Fog(0x87CEEB, 50, 150);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xeeeeee);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+        dirLight.position.set(10, 20, 10);
+        scene.add(dirLight);
+
+        const controls = new PointerLockControls(camera, document.body);
+        const cameraBasePos = new THREE.Vector3();
+
+        let worldData = {};
+        let loadedChunks = new Set();
+        let terrainQueue = [];
+
+        function spawnBlock(x, y, z, id) {
+            const key = `${x},${y},${z}`;
+            if (worldData[key]) removeBlock(x, y, z);
+            const mesh = new THREE.Mesh(blockGeo, BLOCKS[id].m);
+            mesh.position.set(x, y, z);
+            scene.add(mesh);
+            worldData[key] = { id, mesh };
+            return mesh;
+        }
+
+        function removeBlock(x, y, z) {
+            const key = `${x},${y},${z}`;
+            if (worldData[key]) {
+                scene.remove(worldData[key].mesh);
+                delete worldData[key];
+                delete chests[key];
+            }
+        }
+
+        function generateChunkSync(baseX, baseZ) {
+            for (let x = baseX; x < baseX + CONFIG.CHUNK_SIZE; x++) {
+                for (let z = baseZ; z < baseZ + CONFIG.CHUNK_SIZE; z++) {
+                    const height = getTerrainHeight(x, z);
+                    for (let y = 0; y <= height; y++) {
+                        const blockKey = `${x},${y},${z}`;
+                        if (!worldData[blockKey]) {
+                            if (y === 0) spawnBlock(x, y, z, 99);
+                            else if (y === height) spawnBlock(x, y, z, 1);
+                            else if (y >= height - 3) spawnBlock(x, y, z, 2);
+                            else spawnBlock(x, y, z, 3);
+                        }
+                    }
+
+                    if (height > 3 && Math.random() > 0.95) {
+                        const treeHeight = 4 + Math.floor(Math.random() * 2);
+                        for (let ty = height + 1; ty < height + treeHeight; ty++) {
+                            const treeKey = `${x},${ty},${z}`;
+                            if (!worldData[treeKey]) spawnBlock(x, ty, z, 6);
+                        }
+                        for (let lx = -2; lx <= 2; lx++) {
+                            for (let lz = -2; lz <= 2; lz++) {
+                                if (lx === 0 && lz === 0) continue;
+                                const leafKey = `${x + lx},${height + treeHeight + 1},${z + lz}`;
+                                if (!worldData[leafKey]) spawnBlock(x + lx, height + treeHeight + 1, z + lz, 7);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function queueTerrainGeneration(centerX, centerZ) {
+            const chunkRadius = CONFIG.RENDER_DISTANCE;
+            const globalChunkX = Math.floor(centerX / CONFIG.CHUNK_SIZE);
+            const globalChunkZ = Math.floor(centerZ / CONFIG.CHUNK_SIZE);
+            
+            for (let cx = -chunkRadius; cx <= chunkRadius; cx++) {
+                for (let cz = -chunkRadius; cz <= chunkRadius; cz++) {
+                    const currentChunkX = globalChunkX + cx;
+                    const currentChunkZ = globalChunkZ + cz;
+                    const key = `chunk_${currentChunkX}_${currentChunkZ}`;
+                    
+                    if (!loadedChunks.has(key)) {
+                        terrainQueue.push({
+                            baseX: currentChunkX * CONFIG.CHUNK_SIZE,
+                            baseZ: currentChunkZ * CONFIG.CHUNK_SIZE,
+                            key
+                        });
+                    }
+                }
+            }
+        }
+
+        function processTerrainQueue() {
+            if (terrainQueue.length > 0) {
+                const chunk = terrainQueue.shift();
+                generateChunkSync(chunk.baseX, chunk.baseZ);
+                loadedChunks.add(chunk.key);
+            }
+        }
+
+        function saveCurrentWorld() {
+            if (!currentWorldName) return;
+            const blocksSave = Object.keys(worldData).map(k => ({
+                x: worldData[k].mesh.position.x,
+                y: worldData[k].mesh.position.y,
+                z: worldData[k].mesh.position.z,
+                id: worldData[k].id
+            }));
+            localStorage.setItem('pc_world_' + currentWorldName, JSON.stringify(blocksSave));
+            localStorage.setItem('pc_chests_' + currentWorldName, JSON.stringify(chests));
+            localStorage.setItem('pc_inventory_' + currentWorldName, JSON.stringify({ hotbar, inventory, health, hunger, gameMode, gameTime }));
+        }
+
+        function clearScene() {
+            Object.keys(worldData).forEach(k => {
+                scene.remove(worldData[k].mesh);
+            });
+            worldData = {};
+            loadedChunks.clear();
+            terrainQueue = [];
+            chests = {};
+            hotbar = Array(9).fill(null);
+            inventory = Array(27).fill(null);
+            activeChestKey = null;
+            craftingGrid = Array(9).fill(null);
+            activeHotbarIndex = 0;
+            heldItem = null;
+            mineProgress = {};
+            cameraMode = 'first';
+        }
+
+        function loadWorld(name) {
+            clearScene();
+            currentWorldName = name;
+            health = 20;
+            hunger = 20;
+            isFlying = false;
+            gameTime = 6000;
+            lastYPos = 80;
+            spacePressed = false;
+            window.highestY = 80;
+
+            const savedInventory = localStorage.getItem('pc_inventory_' + name);
+
+            if (savedInventory) {
+                const inv = JSON.parse(savedInventory);
+                hotbar = inv.hotbar || Array(9).fill(null);
+                inventory = inv.inventory || Array(27).fill(null);
+                health = inv.health || 20;
+                hunger = inv.hunger || 20;
+                gameMode = inv.gameMode || 'survival';
+                gameTime = inv.gameTime || 6000;
+            } else {
+                if (gameMode === 'creative') {
+                    initCreativeInventory();
+                } else {
+                    initSurvivalInventory();
+                }
+            }
+
+            camera.position.set(0, 80, 0);
+            cameraBasePos.set(0, 80, 0);
+            queueTerrainGeneration(0, 0);
+        }
+
+        const screens = {
+            main: document.getElementById('screen-main'),
+            pause: document.getElementById('screen-pause'),
+            inventory: document.getElementById('screen-inventory'),
+            crafting: document.getElementById('screen-crafting'),
+            creative: document.getElementById('screen-creative'),
+            hudContainer: document.getElementById('hud-container'),
+            crosshair: document.getElementById('crosshair')
+        };
+
+        function hideAllScreens() {
+            Object.values(screens).forEach(s => {
+                if (s !== screens.hudContainer) s.classList.add('hidden');
+            });
+        }
+
+        function updateSavedWorldsList() {
+            const listEl = document.getElementById('world-list');
+            listEl.innerHTML = '';
+            let worlds = JSON.parse(localStorage.getItem('pc_worlds_list') || '[]');
+            worlds.forEach(w => {
+                let btn = document.createElement('button');
+                btn.className = 'mc-btn';
+                btn.innerText = 'Play: ' + w;
+                btn.onclick = () => {
+                    loadWorld(w);
+                    startGameplay();
+                };
+                listEl.appendChild(btn);
+            });
+        }
+        updateSavedWorldsList();
+
+        document.getElementById('gamemode-survival').onclick = () => {
+            gameMode = 'survival';
+            document.getElementById('gamemode-survival').classList.add('active');
+            document.getElementById('gamemode-creative').classList.remove('active');
+        };
+
+        document.getElementById('gamemode-creative').onclick = () => {
+            gameMode = 'creative';
+            document.getElementById('gamemode-creative').classList.add('active');
+            document.getElementById('gamemode-survival').classList.remove('active');
+        };
+
+        document.getElementById('btn-create-world').onclick = () => {
+            let name = document.getElementById('world-name-input').value.trim() || 'My World';
+            let worlds = JSON.parse(localStorage.getItem('pc_worlds_list') || '[]');
+            if (!worlds.includes(name)) worlds.push(name);
+            localStorage.setItem('pc_worlds_list', JSON.stringify(worlds));
+            clearScene();
+            loadWorld(name);
+            startGameplay();
+        };
+
+        function startGameplay() {
+            hideAllScreens();
+            screens.hudContainer.classList.remove('hidden');
+            screens.crosshair.classList.remove('hidden');
+            controls.lock();
+            renderUI();
+        }
+
+        function openPauseMenu() {
+            controls.unlock();
+            hideAllScreens();
+            screens.pause.classList.remove('hidden');
+        }
+
+        document.getElementById('btn-resume').onclick = () => startGameplay();
+
+        document.getElementById('btn-save-quit').onclick = () => {
+            saveCurrentWorld();
+            clearScene();
+            hideAllScreens();
+            screens.main.classList.remove('hidden');
+            updateSavedWorldsList();
+        };
+
+        const hudHotbar = document.getElementById('hud-hotbar');
+        const hudStats = document.getElementById('hud-stats');
+        const hudTime = document.getElementById('hud-time');
+        const cameraModeDisplay = document.getElementById('camera-mode');
+        const mainInvGrid = document.getElementById('main-inventory-grid');
+        const hotbarGrid = document.getElementById('hotbar-grid');
+        const chestGrid = document.getElementById('chest-grid');
+        const cursorItemEl = document.getElementById('cursor-item');
+        const craftingInput = document.getElementById('crafting-input');
+        const craftingInvGrid = document.getElementById('crafting-inv-grid');
+        const craftingHotbarGrid = document.getElementById('crafting-hotbar-grid');
+        const creativeGrid = document.getElementById('creative-grid');
+        const creativeHotbarGrid = document.getElementById('creative-hotbar-grid');
+
+        function createSlotHTML(item, type, index) {
+            const div = document.createElement('div');
+            div.className = 'slot' + (type === 'hud' && index === activeHotbarIndex ? ' selected' : '');
+            if (item) {
+                div.title = BLOCKS[item.id].name;
+                div.innerHTML = `<img src="${BLOCKS[item.id].icon}" class="slot-img"><span class="slot-count">${item.count > 1 ? item.count : ''}</span>`;
+            }
+            div.onmouseenter = () => {
+                if (oKeyHeld && item) splitSlotHover = { type, index, div, item };
+            };
+            div.onmouseleave = () => {
+                splitSlotHover = null;
+            };
+            div.ondblclick = (e) => {
+                e.stopPropagation();
+                handleSlotDoubleClick(type, index);
+            };
+            div.onclick = () => handleSlotClick(type, index);
+            return div;
+        }
+
+        function getTimeString() {
+            const hours = Math.floor((gameTime / 1000) % 24);
+            const mins = Math.floor((gameTime / 16.67) % 60);
+            const isDay = hours >= 6 && hours < 18;
+            return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')} ${isDay ? '☀' : '🌙'}`;
+        }
+
+        function getCameraModeString() {
+            if (cameraMode === 'first') return '1st Person';
+            if (cameraMode === 'third-back') return '3rd Person (Back)';
+            if (cameraMode === 'third-front') return '3rd Person (Front)';
+        }
+
+        function updateDayNightCycle() {
+            const isDay = (gameTime / 1000) % 24 >= 6 && (gameTime / 1000) % 24 < 18;
+            const brightness = isDay ? 1.0 : 0.3;
+            ambientLight.intensity = brightness;
+            dirLight.intensity = isDay ? 0.6 : 0.2;
+            const bgColor = isDay ? 0x87CEEB : 0x1a1a2e;
+            scene.background.setHex(bgColor);
+            scene.fog.color.setHex(bgColor);
+        }
+
+        function renderUI() {
+            hudHotbar.innerHTML = '';
+            for (let i = 0; i < 9; i++) hudHotbar.appendChild(createSlotHTML(hotbar[i], 'hud', i));
+
+            hudTime.innerHTML = getTimeString();
+            cameraModeDisplay.innerHTML = getCameraModeString();
+
+            if (gameMode === 'survival') {
+                const hearts = '❤'.repeat(Math.max(0, health));
+                const hunger_val = '🍖'.repeat(Math.max(0, hunger));
+                hudStats.innerHTML = `
+                    <div class="heart" style="position: fixed; top: 40px; left: 12px; font-size: 24px;">${hearts}</div>
+                    <div class="hunger" style="position: fixed; top: 12px; right: 12px; font-size: 24px;">${hunger_val}</div>
+                `;
+            } else {
+                hudStats.innerHTML = '';
+            }
+
+            mainInvGrid.innerHTML = '';
+            for (let i = 0; i < 27; i++) mainInvGrid.appendChild(createSlotHTML(inventory[i], 'inv', i));
+
+            hotbarGrid.innerHTML = '';
+            for (let i = 0; i < 9; i++) hotbarGrid.appendChild(createSlotHTML(hotbar[i], 'hotbar', i));
+
+            if (activeChestKey && chests[activeChestKey]) {
+                document.getElementById('chest-section').classList.remove('hidden');
+                chestGrid.innerHTML = '';
+                for (let i = 0; i < 27; i++) chestGrid.appendChild(createSlotHTML(chests[activeChestKey][i], 'chest', i));
+            } else {
+                document.getElementById('chest-section').classList.add('hidden');
+            }
+
+            if (heldItem) {
+                cursorItemEl.classList.remove('hidden');
+                cursorItemEl.innerHTML = `<img src="${BLOCKS[heldItem.id].icon}" style="width:32px;height:32px;"><span class="slot-count">${heldItem.count}</span>`;
+            } else {
+                cursorItemEl.classList.add('hidden');
+            }
+        }
+
+        function renderCraftingTable() {
+            hideAllScreens();
+            screens.crafting.classList.remove('hidden');
+            controls.unlock();
+            screens.crosshair.classList.add('hidden');
+
+            craftingInput.innerHTML = '';
+            for (let i = 0; i < 9; i++) {
+                craftingInput.appendChild(createSlotHTML(craftingGrid[i], 'craft', i));
+            }
+
+            const result = checkRecipe(craftingGrid);
+            const resultDiv = document.getElementById('crafting-result');
+            if (result) {
+                resultDiv.innerHTML = `<img src="${BLOCKS[result.id].icon}" class="slot-img"><span class="slot-count">${result.count}</span>`;
+            } else {
+                resultDiv.innerHTML = '';
+            }
+
+            craftingInvGrid.innerHTML = '';
+            for (let i = 0; i < 27; i++) craftingInvGrid.appendChild(createSlotHTML(inventory[i], 'craft-inv', i));
+
+            craftingHotbarGrid.innerHTML = '';
+            for (let i = 0; i < 9; i++) craftingHotbarGrid.appendChild(createSlotHTML(hotbar[i], 'craft-hotbar', i));
+
+            const recipesText = document.getElementById('recipes-text');
+            recipesText.innerHTML = RECIPES.map(r => `<div>${r.name}</div>`).join('');
+        }
+
+        document.getElementById('btn-close-crafting').onclick = () => {
+            controls.lock();
+            screens.crafting.classList.add('hidden');
+            screens.crosshair.classList.remove('hidden');
+            isCraftingOpen = false;
+            craftingGrid.fill(null);
+        };
+
+        function renderCreativeInventory() {
+            hideAllScreens();
+            screens.creative.classList.remove('hidden');
+            controls.unlock();
+            screens.crosshair.classList.add('hidden');
+
+            creativeGrid.innerHTML = '';
+            Object.keys(BLOCKS).forEach(id => {
+                if (!BLOCKS[id].tool) {
+                    const slot = createSlotHTML({ id: parseInt(id), count: 64 }, 'creative', id);
+                    creativeGrid.appendChild(slot);
+                }
+            });
+
+            creativeHotbarGrid.innerHTML = '';
+            for (let i = 0; i < 9; i++) creativeHotbarGrid.appendChild(createSlotHTML(hotbar[i], 'creative-hotbar', i));
+        }
+
+        document.getElementById('btn-close-creative').onclick = () => {
+            controls.lock();
+            screens.creative.classList.add('hidden');
+            screens.crosshair.classList.remove('hidden');
+        };
+
+        document.addEventListener('mousemove', (e) => {
+            if (heldItem) {
+                cursorItemEl.style.left = e.clientX - 16 + 'px';
+                cursorItemEl.style.top = e.clientY - 16 + 'px';
+            }
+        });
+
+        function handleSlotDoubleClick(type, index) {
+            let targetArray;
+            if (type === 'inv') targetArray = inventory;
+            else if (type === 'hotbar') targetArray = hotbar;
+            else if (type === 'craft-inv') targetArray = inventory;
+            else if (type === 'craft-hotbar') targetArray = hotbar;
+            else if (type === 'chest') targetArray = chests[activeChestKey];
+            else return;
+
+            const item = targetArray[index];
+            if (!item || !heldItem) return;
+
+            if (item.id === heldItem.id) {
+                let room = 64 - item.count;
+                let transfer = Math.min(room, heldItem.count);
+                item.count += transfer;
+                heldItem.count -= transfer;
+                if (heldItem.count <= 0) heldItem = null;
+                renderUI();
+            }
+        }
+
+        function handleSlotClick(type, index) {
+            let targetArray;
+            if (type === 'inv') targetArray = inventory;
+            else if (type === 'hotbar' || type === 'hud') targetArray = hotbar;
+            else if (type === 'chest') targetArray = chests[activeChestKey];
+            else if (type === 'craft') targetArray = craftingGrid;
+            else if (type === 'craft-inv') targetArray = inventory;
+            else if (type === 'craft-hotbar') targetArray = hotbar;
+            else if (type === 'creative' || type === 'creative-hotbar') {
+                if (type === 'creative') {
+                    if (heldItem && heldItem.id === parseInt(index)) {
+                        heldItem.count = 64;
+                    } else {
+                        heldItem = { id: parseInt(index), count: 64 };
+                    }
+                } else {
+                    targetArray = hotbar;
+                }
+            }
+
+            if (!targetArray) return;
+
+            const current = targetArray[index];
+
+            if (!heldItem && current) {
+                if (oKeyHeld && current.count > 1) {
+                    const half = Math.floor(current.count / 2);
+                    heldItem = { id: current.id, count: half };
+                    current.count -= half;
+                } else {
+                    heldItem = current;
+                    targetArray[index] = null;
+                }
+            } else if (heldItem && !current) {
+                if (oKeyHeld && heldItem.count > 1) {
+                    const half = Math.floor(heldItem.count / 2);
+                    targetArray[index] = { id: heldItem.id, count: half };
+                    heldItem.count -= half;
+                } else {
+                    targetArray[index] = heldItem;
+                    heldItem = null;
+                }
+            } else if (heldItem && current) {
+                if (heldItem.id === current.id) {
+                    let room = 64 - current.count;
+                    let transfer = Math.min(room, heldItem.count);
+                    current.count += transfer;
+                    heldItem.count -= transfer;
+                    if (heldItem.count <= 0) heldItem = null;
+                } else {
+                    targetArray[index] = heldItem;
+                    heldItem = current;
+                }
+            }
+
+            if (type === 'craft') renderCraftingTable();
+            else if (type.includes('craft')) renderCraftingTable();
+            renderUI();
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'o') {
+                oKeyHeld = true;
+                if (splitSlotHover && heldItem) {
+                    const { type, index, item } = splitSlotHover;
+                    if (heldItem.count > 1) {
+                        const half = Math.floor(heldItem.count / 2);
+                        let targetArray;
+                        if (type === 'inv') targetArray = inventory;
+                        else if (type === 'hotbar' || type === 'hud') targetArray = hotbar;
+                        else if (type === 'chest') targetArray = chests[activeChestKey];
+                        else if (type === 'craft') targetArray = craftingGrid;
+                        else if (type === 'craft-inv') targetArray = inventory;
+                        else if (type === 'craft-hotbar') targetArray = hotbar;
+                        
+                        if (targetArray) {
+                            targetArray[index] = { id: heldItem.id, count: half };
+                            heldItem.count -= half;
+                            if (type.includes('craft')) renderCraftingTable();
+                            renderUI();
+                        }
+                    }
+                }
+            }
+        });
+
+        function checkRecipe(grid) {
+            for (let recipe of RECIPES) {
+                if (matchesRecipe(grid, recipe.input)) {
+                    return recipe.output;
+                }
+            }
+            return null;
+        }
+
+        function matchesRecipe(grid, pattern) {
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 3; col++) {
+                    const gridIdx = row * 3 + col;
+                    const patternVal = pattern[row][col];
+                    const gridVal = grid[gridIdx]?.id;
+                    if (patternVal !== gridVal) return false;
+                }
+            }
+            return true;
+        }
+
+        let isInvOpen = false;
+        let isCraftingOpen = false;
+
+        function toggleInventory(openChestKey = null) {
+            isInvOpen = !isInvOpen;
+            if (openChestKey) {
+                activeChestKey = openChestKey;
+                isInvOpen = true;
+            } else if (!isInvOpen) {
+                activeChestKey = null;
+            }
+
+            if (isInvOpen) {
+                controls.unlock();
+                screens.inventory.classList.remove('hidden');
+                screens.crosshair.classList.add('hidden');
+            } else {
+                if (controls.isLocked === false) controls.lock();
+                screens.inventory.classList.add('hidden');
+                screens.crosshair.classList.remove('hidden');
+            }
+            renderUI();
+        }
+
+        document.getElementById('btn-close-inv').onclick = () => toggleInventory();
+
+        const keysPressed = {};
+
+        document.addEventListener('keydown', (e) => {
+            const code = e.code;
+            const key = e.key.toLowerCase();
+
+            keysPressed[code] = true;
+
+            if (code === 'KeyO') {
+                oKeyHeld = true;
+            }
+
+            if (code === 'ShiftRight') {
+                rightShiftHeld = true;
+            }
+
+            if (code === 'Tab' && controls.isLocked && !isInvOpen && !isCraftingOpen) {
+                e.preventDefault();
+                if (cameraMode === 'first') cameraMode = 'third-back';
+                else if (cameraMode === 'third-back') cameraMode = 'third-front';
+                else cameraMode = 'first';
+                renderUI();
+            }
+
+            if (code === 'Escape') {
+                if (isInvOpen) toggleInventory();
+                else if (isCraftingOpen) {
+                    controls.lock();
+                    screens.crafting.classList.add('hidden');
+                    screens.crosshair.classList.remove('hidden');
+                    isCraftingOpen = false;
+                    craftingGrid.fill(null);
+                }
+                else if (controls.isLocked) openPauseMenu();
+                else if (!screens.pause.classList.contains('hidden')) startGameplay();
+                return;
+            }
+
+            if (code === 'KeyE' && controls.isLocked) {
+                if (gameMode === 'creative') renderCreativeInventory();
+                else toggleInventory();
+            }
+
+            if (controls.isLocked && !isInvOpen && !isCraftingOpen) {
+                if (code === 'KeyW') move.f = true;
+                if (code === 'KeyS') move.b = true;
+                if (code === 'KeyA') move.l = true;
+                if (code === 'KeyD') move.r = true;
+                if (code === 'Space') {
+                    spacePressed = true;
+                }
+                
+                if (code.startsWith('Digit')) {
+                    let num = parseInt(code.replace('Digit', ''));
+                    if (num >= 1 && num <= 9) {
+                        activeHotbarIndex = num - 1;
+                        renderUI();
+                    }
+                }
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            const code = e.code;
+            keysPressed[code] = false;
+
+            if (code === 'KeyO') {
+                oKeyHeld = false;
+                splitSlotHover = null;
+            }
+            if (code === 'ShiftRight') {
+                rightShiftHeld = false;
+            }
+            if (code === 'KeyW') move.f = false;
+            if (code === 'KeyS') move.b = false;
+            if (code === 'KeyA') move.l = false;
+            if (code === 'KeyD') move.r = false;
+            if (code === 'Space') {
+                spacePressed = false;
+            }
+        });
+
+        document.addEventListener('contextmenu', e => e.preventDefault());
+
+        document.addEventListener('mousedown', (e) => {
+            if (controls.isLocked && !isInvOpen && !isCraftingOpen) {
+                if (e.button === 0 && !rightShiftHeld) {
+                    triggerWorldAction('place');
+                }
+            }
+        });
+
+        function triggerWorldAction(action) {
+            const rc = new THREE.Raycaster();
+            rc.setFromCamera(new THREE.Vector2(0, 0), camera);
+            const meshes = Object.values(worldData).map(w => w.mesh);
+            const hits = rc.intersectObjects(meshes);
+
+            if (hits.length > 0 && hits[0].distance < CONFIG.REACH_DISTANCE) {
+                const hit = hits[0];
+                const pos = hit.object.position;
+                const key = `${pos.x},${pos.y},${pos.z}`;
+
+                if (action === 'place') {
+                    if (worldData[key] && BLOCKS[worldData[key].id].isChest) {
+                        if (!chests[key]) chests[key] = Array(27).fill(null);
+                        toggleInventory(key);
+                        return;
+                    }
+                    if (worldData[key] && BLOCKS[worldData[key].id].isCraftingTable) {
+                        isCraftingOpen = true;
+                        renderCraftingTable();
+                        return;
+                    }
+
+                    const activeStack = hotbar[activeHotbarIndex];
+                    if (gameMode === 'creative' || (activeStack && activeStack.count > 0)) {
+                        const placePos = pos.clone().add(hit.face.normal);
+                        if (placePos.distanceTo(camera.position) > 1.0 && canPlaceBlock(placePos)) {
+                            const id = gameMode === 'creative' ? (activeStack?.id || 1) : activeStack.id;
+                            spawnBlock(placePos.x, placePos.y, placePos.z, id);
+                            if (BLOCKS[id].isChest) {
+                                chests[`${placePos.x},${placePos.y},${placePos.z}`] = Array(27).fill(null);
+                            }
+                            if (gameMode === 'survival' && activeStack) {
+                                activeStack.count--;
+                                if (activeStack.count <= 0) hotbar[activeHotbarIndex] = null;
+                            }
+                            renderUI();
+                        }
+                    }
+                }
+            }
+        }
+
+        function triggerBreakAction() {
+            const rc = new THREE.Raycaster();
+            rc.setFromCamera(new THREE.Vector2(0, 0), camera);
+            const meshes = Object.values(worldData).map(w => w.mesh);
+            const hits = rc.intersectObjects(meshes);
+
+            if (hits.length > 0 && hits[0].distance < CONFIG.REACH_DISTANCE) {
+                const hit = hits[0];
+                const pos = hit.object.position;
+                const key = `${pos.x},${pos.y},${pos.z}`;
+
+                if (worldData[key]) {
+                    if (worldData[key].id === 99) return;
+
+                    const blockId = worldData[key].id;
+                    const toolItem = hotbar[activeHotbarIndex];
+                    const tool = toolItem ? BLOCKS[toolItem.id] : null;
+                    
+                    const blockBreakable = !tool || !tool.mineable || tool.mineable.includes(blockId);
+                    
+                    if (blockBreakable) {
+                        removeBlock(pos.x, pos.y, pos.z);
+                        if (gameMode === 'creative') {
+                        } else {
+                            addItemToPlayer(blockId, 1);
+                            if (hunger > 0) hunger--;
+                        }
+                        renderUI();
+                    }
+                }
+            }
+        }
+
+        controls.addEventListener('unlock', () => {
+            if (screens.inventory.classList.contains('hidden') && 
+                screens.main.classList.contains('hidden') &&
+                screens.crafting.classList.contains('hidden') &&
+                screens.creative.classList.contains('hidden')) {
+                openPauseMenu();
+            }
+        });
+
+        const move = { f: false, b: false, l: false, r: false };
+        let vel = new THREE.Vector3(), dir = new THREE.Vector3();
+        let prevTime = performance.now();
+        let lastTerrainCheck = 0;
+        const playerMesh = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.8, 0.6), new THREE.MeshLambertMaterial({ color: 0xffdbac }));
+        scene.add(playerMesh);
+
+        function updateCamera() {
+            playerMesh.position.copy(camera.position);
+            playerMesh.position.y -= 0.9;
+
+            if (cameraMode === 'first') {
+                playerMesh.visible = false;
+            } else if (cameraMode === 'third-back') {
+                playerMesh.visible = true;
+                const offset = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).multiplyScalar(4);
+                offset.y = 2;
+                const camPos = playerMesh.position.clone().add(offset);
+                camera.position.copy(camPos);
+                camera.lookAt(playerMesh.position.clone().add(new THREE.Vector3(0, 0.8, 0)));
+            } else if (cameraMode === 'third-front') {
+                playerMesh.visible = true;
+                const offset = new THREE.Vector3(0, 0, 1).applyQuaternion(camera.quaternion).multiplyScalar(4);
+                offset.y = 2;
+                const camPos = playerMesh.position.clone().add(offset);
+                camera.position.copy(camPos);
+                camera.lookAt(playerMesh.position.clone().add(new THREE.Vector3(0, 0.8, 0)));
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            let time = performance.now();
+            let delta = Math.min((time - prevTime) / 1000, 0.1);
+
+            processTerrainQueue();
+            updateDayNightCycle();
+
+            gameTime += delta * 20;
+            if (gameTime > 24000) gameTime = 0;
+
+            if (typeof window.lastBreakTime === 'undefined') window.lastBreakTime = 0;
+            
+            if (rightShiftHeld && controls.isLocked && !isInvOpen && !isCraftingOpen) {
+                if (time - window.lastBreakTime > 300) {
+                    triggerBreakAction();
+                    window.lastBreakTime = time;
+                }
+            }
+
+            if (controls.isLocked) {
+                vel.x *= 0.9;
+                vel.z *= 0.9;
+
+                if (!isFlying) {
+                    vel.y -= CONFIG.GRAVITY * delta;
+                } else {
+                    vel.y = 0;
+                }
+
+                const currentlyOnGround = isOnGround(camera.position);
+
+                if (spacePressed && currentlyOnGround && !isFlying) {
+                    vel.y = CONFIG.JUMP_FORCE;
+                    spacePressed = false;
+                }
+
+                if (gameMode === 'creative' && isFlying) {
+                    if (move.f) camera.position.y += CONFIG.MOVE_SPEED * delta;
+                    if (move.b) camera.position.y -= CONFIG.MOVE_SPEED * delta;
+                }
+
+                dir.z = Number(move.f) - Number(move.b);
+                dir.x = Number(move.r) - Number(move.l);
+                dir.normalize();
+
+                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+                forward.y = 0;
+                forward.normalize();
+
+                const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+                right.y = 0;
+                right.normalize();
+
+                if (typeof window.isCrouching === 'undefined') {
+                    window.isCrouching = false;
+                    window.originalHeight = CONFIG.PLAYER_HEIGHT;
+                    document.addEventListener('keydown', e => { 
+                        if (e.key.toLowerCase() === 'z') { window.isCrouching = true; CONFIG.PLAYER_HEIGHT = window.originalHeight * 0.6; }
+                    });
+                    document.addEventListener('keyup', e => { 
+                        if (e.key.toLowerCase() === 'z') { window.isCrouching = false; CONFIG.PLAYER_HEIGHT = window.originalHeight; }
+                    });
+                }
+
+                vel.x = 0;
+                vel.z = 0;
+
+                if (move.f || move.b || move.l || move.r) {
+                    const currentSpeed = window.isCrouching ? CONFIG.MOVE_SPEED * 0.4 : CONFIG.MOVE_SPEED;
+                    
+                    vel.x = (forward.x * dir.z + right.x * dir.x) * currentSpeed;
+                    vel.z = (forward.z * dir.z + right.z * dir.x) * currentSpeed;
+                }
+
+                const nextPos = camera.position.clone();
+                nextPos.x += vel.x * delta;
+                nextPos.z += vel.z * delta;
+                nextPos.y += vel.y * delta;
+
+                if (!checkCollisionAxis(nextPos, 'xyz')) {
+                    camera.position.copy(nextPos);
+                } else {
+                    const testX = camera.position.clone();
+                    testX.x += vel.x * delta;
+                    if (!checkCollisionAxis(testX, 'x')) {
+                        camera.position.x += vel.x * delta;
+                    }
+                    
+                    const testZ = camera.position.clone();
+                    testZ.z += vel.z * delta;
+                    if (!checkCollisionAxis(testZ, 'z')) {
+                        camera.position.z += vel.z * delta;
+                    }
+                    
+                    const testY = camera.position.clone();
+                    testY.y += vel.y * delta;
+                    if (!checkCollisionAxis(testY, 'y')) {
+                        camera.position.y += vel.y * delta;
+                    } else {
+                        vel.y = 0;
+                    }
+                }
+
+                if (camera.position.y < CONFIG.PLAYER_HEIGHT) {
+                    vel.y = 0;
+                    camera.position.y = CONFIG.PLAYER_HEIGHT;
+                }
+
+                if (camera.position.y < -10) {
+                    health = 0;
+                }
+
+                if (typeof window.highestY === 'undefined') window.highestY = camera.position.y;
+
+                if (!isOnGround(camera.position)) {
+                    window.highestY = Math.max(window.highestY, camera.position.y);
+                } else {
+                    if (window.highestY - camera.position.y > 4 && !isFlying) {
+                        let fallDamage = Math.floor(window.highestY - camera.position.y - 3);
+                        health -= fallDamage;
+                        if (health < 0) health = 0;
+                        renderUI();
+                    }
+                    window.highestY = camera.position.y; 
+                }
+                
+                lastYPos = camera.position.y;
+
+                if (time - lastTerrainCheck > 500) {
+                    const chunkX = Math.floor(camera.position.x / CONFIG.CHUNK_SIZE);
+                    const chunkZ = Math.floor(camera.position.z / CONFIG.CHUNK_SIZE);
+                    
+                    queueTerrainGeneration(chunkX * CONFIG.CHUNK_SIZE, chunkZ * CONFIG.CHUNK_SIZE);
+                    
+                    const maxDist = (CONFIG.RENDER_DISTANCE + 1.5) * CONFIG.CHUNK_SIZE;
+                    for (const key in worldData) {
+                        const block = worldData[key];
+                        const dx = block.mesh.position.x - camera.position.x;
+                        const dz = block.mesh.position.z - camera.position.z;
+                        
+                        if (Math.abs(dx) > maxDist || Math.abs(dz) > maxDist) {
+                            scene.remove(block.mesh);
+                            
+                            const blockCX = Math.floor(block.mesh.position.x / CONFIG.CHUNK_SIZE);
+                            const blockCZ = Math.floor(block.mesh.position.z / CONFIG.CHUNK_SIZE);
+                            loadedChunks.delete(`chunk_${blockCX}_${blockCZ}`);
+                            
+                            delete worldData[key];
+                        }
+                    }
+                    
+                    lastTerrainCheck = time;
+                }
+
+                updateCamera();
+            }
+
+            renderer.render(scene, camera);
+            prevTime = time;
+        }
+        animate();
+    </script>
+</body>
+</html>
